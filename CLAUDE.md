@@ -30,6 +30,7 @@ Project management SaaS for service providers (e.g. interior designers) to manag
 
 Feature specs live in `docs/`. Always read the relevant spec before implementing a feature.
 
+- `docs/architecture.md` — Overarching architecture, conventions, and patterns. **Read this first.**
 - `docs/task-hierarchy.md` — Client > Project > List > Task hierarchy and access model
 - `docs/file-asset-management.md` — Folder/file structure and visibility rules
 
