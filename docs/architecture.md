@@ -228,6 +228,120 @@ npm run db:reset   # Drop, migrate, and reseed
 
 ---
 
+## Deployment
+
+### Goals
+
+- **Cloud-agnostic** — the app must not be tightly coupled to any one cloud provider. Avoid vendor-specific APIs, SDKs, or platform primitives that would make migration painful.
+- **Low cost** — suitable for a small business with low traffic. Optimize for idle cost, not peak throughput.
+- **Easy to deploy** — minimal ops overhead. No Kubernetes, no managed orchestration.
+- **Easy to migrate** — standard containerized runtime means the app can move to a different host without code changes.
+
+### Target: AWS Amplify + Containerized Database
+
+The primary deployment target is **AWS Amplify** (container-based, not the static/SSR hosting mode). Amplify runs the Next.js app as a Docker container, which keeps deployment straightforward and the runtime portable.
+
+The database runs as a **PostgreSQL container** — either:
+- A sidecar container if the hosting environment supports multi-container deployments, or
+- A lightweight managed PostgreSQL instance (e.g. Amazon RDS for PostgreSQL on the free/micro tier, or a small Render/Railway Postgres instance).
+
+The preference is a containerized PostgreSQL over a managed service when cost is the deciding factor. The only coupling to the database is the `DATABASE_URL` connection string — switching providers is a config change, not a code change.
+
+### Docker
+
+The app should be runnable as a single Docker container. A `Dockerfile` at the project root builds the Next.js app and serves it via the built-in Node.js server. The database is a separate container (not bundled into the app image).
+
+A `docker-compose.yml` is provided for local development and simple self-hosted deployments — it spins up the app container and a PostgreSQL container together.
+
+### Environment Variables
+
+All environment-specific configuration is passed via environment variables. There are no hard-coded environment values in code. Required variables:
+
+| Variable            | Description                                      |
+|---------------------|--------------------------------------------------|
+| `DATABASE_URL`      | PostgreSQL connection string                     |
+| `NEXTAUTH_URL`      | Public URL of the app (for auth callbacks)       |
+| `NEXTAUTH_SECRET`   | Secret for signing session tokens                |
+| `EMAIL_SERVER`      | SMTP connection string for magic link emails     |
+| `EMAIL_FROM`        | From address for auth emails                     |
+
+### Migrations on Deploy
+
+Prisma migrations run as a step before the app starts. In the Docker entrypoint or deploy hook:
+
+```bash
+npx prisma migrate deploy   # applies pending migrations (non-interactive)
+node server.js              # start the app
+```
+
+Never run `prisma migrate dev` in production — use `prisma migrate deploy`.
+
+---
+
+## LLM Integration — Bring Your Own Key (BYOK)
+
+### Philosophy
+
+Luna PM can support AI-powered agentic features (task creation from natural language, status summaries, project reporting, etc.) without maintaining or billing for API access itself. Instead, users provide their own API key from their preferred LLM provider. The application holds the key, routes requests through it, and never proxies usage through a shared Anthropic/OpenAI account.
+
+This keeps the model simple:
+- No LLM billing infrastructure required.
+- No per-seat AI charges passed to the user.
+- Users choose their own provider (Anthropic Claude, OpenAI, Google Gemini, etc.).
+- The application works identically regardless of which provider key is configured.
+
+### Database Schema
+
+Each workspace can store one LLM configuration. This keeps AI context workspace-scoped — different workspaces could use different providers if needed.
+
+**`WorkspaceLlmConfig` model** (to be added to schema when implementing):
+
+| Column       | Type    | Notes                                                        |
+|--------------|---------|--------------------------------------------------------------|
+| id           | cuid    | Primary key                                                  |
+| workspaceId  | String  | FK to Workspace. Unique (one config per workspace).          |
+| provider     | String  | `anthropic`, `openai`, `google` (extensible, stored as string) |
+| model        | String  | Model ID (e.g. `claude-sonnet-4-6`, `gpt-4o`, `gemini-2.0-flash`) |
+| encryptedKey | String  | API key, encrypted at rest                                   |
+| createdAt    | DateTime | Auto                                                        |
+| updatedAt    | DateTime | Auto                                                        |
+
+The API key must be **encrypted at rest** before writing to the database. Use a server-side encryption key (an additional environment variable, `LLM_ENCRYPTION_KEY`) to encrypt/decrypt. Never store or return the plaintext key to the client.
+
+### Key Storage Rules
+
+- The API key is write-only from the UI: the user can set or replace it, but never retrieve it after saving.
+- The key is decrypted server-side only, at the moment it's needed to make an LLM call.
+- API routes that invoke LLM features decrypt the key in memory and do not log it.
+
+### LLM Client Abstraction
+
+All LLM calls go through a single abstraction in `src/lib/llm.ts`. This function accepts a `WorkspaceLlmConfig` (with decrypted key) and a prompt, and routes the call to the appropriate provider SDK. This is the only place in the codebase that imports provider SDKs.
+
+This means adding a new provider requires changing one file, not hunting through feature code.
+
+### Agentic Features (Future)
+
+Planned AI-powered capabilities, in rough priority order:
+
+1. **Natural language task creation** — describe a task in plain text, the model extracts structured fields (name, due date, owner, list, etc.).
+2. **Project status summary** — generate a human-readable summary of a project's current state (tasks complete, overdue, blocked).
+3. **Workspace report** — roll up status across all active projects in a workspace for client-facing updates.
+4. **Task suggestions** — given a project description, suggest a set of tasks and sublists.
+
+Each feature is a discrete server action or API route. None of them require streaming or persistent agent sessions at this stage — simple request/response is sufficient.
+
+### Settings UI
+
+LLM configuration lives in workspace settings:
+- Provider dropdown (Anthropic, OpenAI, Google).
+- Model input (free text, so new models don't require a code change).
+- API key field (password input, masked, write-only).
+- A "Test connection" button that makes a minimal API call to verify the key works.
+- Once a key is saved, the UI shows "API key configured" with a "Replace key" button — never shows the key value.
+
+---
+
 ## Build Verification
 
 Before considering any feature complete, run:
