@@ -22,6 +22,23 @@ This project is also a proof of concept for a scaffold-driven approach to bespok
 
 The hypothesis is that productivity software — project management, CRM, invoicing, scheduling — is a category ripe for this model. The domain knowledge is well-understood, the requirements are tractable, and the gap between "what SaaS provides" and "what this specific business needs" is often large enough to justify building.
 
+## AI Integration — Bring Your Own Key
+
+Luna PM is not an AI app, but it is designed to be augmented and managed agentically.
+
+The idea: once your projects and tasks live in a structured system, an LLM can become a useful interface to that data. You should be able to ask "what's the status of the kitchen project?" or say "create a task for the mood board review, due Friday" and have it just work — without switching to a separate tool or copying data around.
+
+Rather than bundling a specific AI provider and billing for it, Luna PM uses a **Bring Your Own Key (BYOK)** model:
+
+- Each workspace can be configured with an API key from any supported LLM provider (Anthropic, OpenAI, Google)
+- The key is stored encrypted at rest and never returned to the client after being saved
+- All LLM calls are routed through a single server-side abstraction — swapping providers is a config change, not a code change
+- The app works identically with or without a key configured — AI features are additive, not load-bearing
+
+This keeps the model simple: no LLM billing infrastructure, no per-seat AI charges, and the business stays in control of which provider they use and how much they spend.
+
+Planned agentic capabilities (natural language task creation, project status summaries, workspace reports) are designed as discrete server actions — simple request/response, no streaming or persistent sessions required.
+
 ## What It Does
 
 Luna PM gives aviviandesigns.com two surfaces:

@@ -1,0 +1,35 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: luna_pm
+      POSTGRES_USER: luna
+      POSTGRES_PASSWORD: luna
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U luna -d luna_pm"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://luna:luna@db:5432/luna_pm
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: dev-secret-change-in-production
+      EMAIL_SERVER: smtp://localhost:1025
+      EMAIL_FROM: noreply@luna-pm.local
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
