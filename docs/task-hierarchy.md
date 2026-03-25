@@ -172,6 +172,25 @@ Add `workspaceId` and `projectId`. Remove `listId`.
 - If projectId is set, the task is in that project (either directly or via sublists).
 - If projectId is null, the task is in the workspace implicit list.
 
+### TaskActivityLog (new model)
+
+Immutable audit trail of changes made to a task. One row per changed field per save.
+
+| Column    | Type     | Notes                                                        |
+|-----------|----------|--------------------------------------------------------------|
+| id        | cuid     | Primary key                                                  |
+| taskId    | String   | FK to Task                                                   |
+| actorId   | String   | FK to User — who made the change                             |
+| field     | String   | Field that changed (e.g. `"statusId"`, `"ownerId"`, `"name"`) |
+| oldValue  | String?  | Human-readable previous value; null = was not set           |
+| newValue  | String?  | Human-readable new value; null = cleared                    |
+| createdAt | DateTime | Auto                                                         |
+
+- `field` is a plain string, not an enum, to stay flexible.
+- `oldValue`/`newValue` store display strings (e.g. `"Sam Chen"` not a cuid), so the log is readable without joins.
+- No `updatedAt` — log entries are immutable.
+- For description changes, values are `"(had description)"` / `"(updated)"` rather than the full text.
+
 ### Workspace implicit list
 
 Every workspace has an implicit list — this is not a database record, but a virtual concept. It represents all tasks where `workspaceId` is set but `projectId` is null and there are zero ListTask rows.
@@ -350,9 +369,12 @@ No schema changes needed for Folder/File — just update `clientId` references t
 
 **Update** — `PATCH /api/tasks/[id]`
 - Editable: name, description, statusId, ownerId, requestorId, dueDate, startDate, priority, tags, timeEstimate, points, requiresApproval.
+- `dueDate` accepts a datetime value (date + time); `startDate` accepts date only.
 - Moving a task to a different project: update projectId, remove all ListTask rows (task lands directly in the new project).
 - Moving a task to workspace implicit list: clear projectId, remove all ListTask rows.
 - List membership within a project is managed via Multi-List Operations.
+- Pass `actorId` in the request body to write activity log entries. If omitted, the update still succeeds but nothing is logged.
+- Each field that differs from its previous value produces one `TaskActivityLog` row.
 
 **Delete** — `DELETE /api/tasks/[id]`
 - Removes all ListTask entries, subtasks, TaskFile entries, TaskComment entries, TaskApproval, and TaskDependency rows.
@@ -612,19 +634,38 @@ The form pre-populates based on where the user navigated from, so they don't hav
 - Each subtask shows: name, owner, status badge.
 - Subtask count shown next to the parent task name (e.g. "3 subtasks").
 
-**On the task detail page (`/tasks/[id]`) (future):**
-- Subtasks section below the task details, above comments.
-- Displayed as a checklist-style list: name, owner, status, due date.
-- "Add subtask" button opens an inline form (name + status, owner defaults to parent's owner).
-- Each subtask row has edit and delete actions.
+**On the task detail page (`/tasks/[id]`):**
+- Subtasks section below description.
+- Displayed as a list: status badge, name, owner.
+- "Add subtask" inline form at the bottom (name required; inherits status default and parent's owner).
+- Only top-level tasks show the Add subtask form — subtasks themselves do not.
+- Each subtask links to its own task detail page.
 
-**On the client portal:**
-- Subtasks appear indented under their parent task in the task list view.
-- Read-only — no create/edit/delete.
+**On the client portal task page:**
+- Subtasks shown with status badge, name, and owner.
+- Clients can add subtasks via the same inline form.
 
 **On the admin tasks table (`/tasks`):**
 - Subtasks are NOT shown as separate rows in the global tasks table.
 - Only top-level tasks (parentTaskId is null) appear in the table.
+
+### Task Detail Page (`/tasks/[id]`)
+
+**Header:**
+- Breadcrumb: workspace → project → parent task (if any).
+- Task name — click to edit inline. Saves on Enter or blur. Cancels on Escape.
+- Status badge and priority indicator.
+
+**Main column (left, 2/3 width):**
+- **Description** — shows current text; "Edit" button switches to textarea. Save/Cancel.
+- **Subtasks** — list of subtasks with status badge, name, owner. "+ Add subtask" inline form at the bottom (only for top-level tasks).
+- **Comments** — threaded comment list. "Reply" button per comment opens inline reply form. New top-level comment form at the bottom.
+
+**Sidebar (right, 1/3 width):**
+- **Details card** — interactive dropdowns and date inputs for: Status, Priority, Owner, Requestor, Start date, Due date (datetime). Changes save immediately on blur/change.
+- **Attachments card** — list of attached files with download links. "+ Attach file" button triggers file picker, uploads to S3 via presigned URL.
+- **Approval card** — shown only if `requiresApproval` is true. Shows approval status, decider, note.
+- **Activity log** — newest-first log of all field changes. Shows who changed what, from/to, and when.
 
 ### Task Comments UI
 
@@ -654,7 +695,7 @@ Path-based access for client users. The slug in the URL identifies the CLIENT wo
 **Routing:**
 - `/client/[workspace-slug]` — workspace overview with projects list.
 - `/client/[workspace-slug]/projects/[id]` — project detail with tasks and sublists.
-- `/client/[workspace-slug]/tasks/[id]` — task detail with subtasks and comments.
+- `/client/[workspace-slug]/tasks/[id]` — task detail with subtasks, comments, and attachments.
 
 **Behavior:**
 - Only accessible for CLIENT workspaces. Returns 404 for COMPANY workspace slugs.
@@ -662,9 +703,15 @@ Path-based access for client users. The slug in the URL identifies the CLIENT wo
 - Shows the workspace name and primary user info.
 - Project section shows sublists and tasks grouped by sublist, plus direct project tasks.
 - Tasks in multiple sublists appear under each.
-- Read-only for tasks and lists — no create/edit/delete.
-- Client can comment on tasks and approve/reject tasks pending approval.
-- Pending approvals widget shows tasks awaiting client approval.
+- Clients can create tasks within each list/section via an inline "+ Add task" form.
+- On the task detail page, clients can:
+  - Edit task name (click name to edit inline).
+  - Edit description.
+  - Change status, priority, owner, requestor, start date, due date via the Details sidebar.
+  - Add subtasks via inline form.
+  - Post comments and threaded replies.
+  - Attach files (upload to S3 via presigned URL).
+  - View activity log.
 - COMPANY workspace data never appears in the client portal.
 
 ---

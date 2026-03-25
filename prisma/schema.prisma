@@ -62,6 +62,7 @@ model User {
   approvals        TaskApproval[]
   requestedTasks   Task[]   @relation("TaskRequestor")
   ownedTasks       Task[]   @relation("TaskOwner")
+  activityLogs     TaskActivityLog[] @relation("TaskActivityActor")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }
@@ -208,8 +209,21 @@ model Task {
   approval         TaskApproval?
   comments         TaskComment[]
   files            TaskFile[]
+  activityLogs     TaskActivityLog[]
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
+}
+
+model TaskActivityLog {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id])
+  actorId   String
+  actor     User     @relation("TaskActivityActor", fields: [actorId], references: [id])
+  field     String
+  oldValue  String?
+  newValue  String?
+  createdAt DateTime @default(now())
 }
 
 model TaskDependency {

@@ -6,9 +6,11 @@ import { useRouter } from "next/navigation";
 export function EditDescription({
   taskId,
   initialValue,
+  actorId,
 }: {
   taskId: string;
   initialValue: string | null;
+  actorId?: string;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -23,7 +25,7 @@ export function EditDescription({
       const res = await fetch(`/api/tasks/${taskId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ description: value }),
+        body: JSON.stringify({ description: value, actorId }),
       });
       if (!res.ok) throw new Error("Failed");
       setEditing(false);
@@ -69,7 +71,7 @@ export function EditDescription({
   }
 
   return (
-    <div className="group relative">
+    <div>
       {initialValue ? (
         <p className="text-sm text-zinc-600 whitespace-pre-wrap">{initialValue}</p>
       ) : (
