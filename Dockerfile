@@ -29,8 +29,8 @@ COPY --from=builder /app/prisma ./prisma
 
 # Prisma CLI and engines — `prisma` is a devDependency so it's not included in
 # the standalone output. Copy it explicitly so `prisma migrate deploy` works.
-COPY --from=deps /app/node_modules/prisma ./node_modules/prisma
-COPY --from=deps /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
+COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 
 EXPOSE 3000
 
