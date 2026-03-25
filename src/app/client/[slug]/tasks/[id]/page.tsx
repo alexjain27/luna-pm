@@ -103,31 +103,33 @@ export default async function ClientTaskPage({
             <EditDescription taskId={task.id} initialValue={task.description} actorId={actorId} />
           </section>
 
-          {/* Subtasks */}
-          <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-            <h3 className="text-sm font-semibold text-zinc-900 mb-3">
-              Subtasks {task.subtasks.length > 0 && `(${task.subtasks.length})`}
-            </h3>
-            {task.subtasks.length > 0 && (
-              <div className="flex flex-col gap-2 mb-2">
-                {task.subtasks.map((sub) => (
-                  <div
-                    key={sub.id}
-                    className="flex items-center justify-between rounded-lg border border-zinc-200 px-4 py-3"
-                  >
-                    <div className="flex items-center gap-3">
-                      <StatusBadge name={sub.status.name} color={sub.status.color} />
-                      <span className="text-sm text-zinc-900">{sub.name}</span>
+          {/* Subtasks — only shown on top-level tasks */}
+          {!task.parentTaskId && (
+            <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+              <h3 className="text-sm font-semibold text-zinc-900 mb-3">
+                Subtasks {task.subtasks.length > 0 && `(${task.subtasks.length})`}
+              </h3>
+              {task.subtasks.length > 0 && (
+                <div className="flex flex-col gap-2 mb-2">
+                  {task.subtasks.map((sub) => (
+                    <div
+                      key={sub.id}
+                      className="flex items-center justify-between rounded-lg border border-zinc-200 px-4 py-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <StatusBadge name={sub.status.name} color={sub.status.color} />
+                        <span className="text-sm text-zinc-900">{sub.name}</span>
+                      </div>
+                      <span className="text-xs text-zinc-500">{sub.owner?.name ?? "Unassigned"}</span>
                     </div>
-                    <span className="text-xs text-zinc-500">{sub.owner?.name ?? "Unassigned"}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            {!task.parentTaskId && defaultStatus && actorId && (
-              <AddSubtaskForm taskId={task.id} defaultStatusId={defaultStatus.id} />
-            )}
-          </section>
+                  ))}
+                </div>
+              )}
+              {defaultStatus && actorId && (
+                <AddSubtaskForm taskId={task.id} defaultStatusId={defaultStatus.id} />
+              )}
+            </section>
+          )}
 
           {/* Comments */}
           <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">

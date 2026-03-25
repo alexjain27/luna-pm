@@ -239,7 +239,7 @@ The Task model already has `parentTaskId` and the `Subtasks` self-relation. No s
 
 - A subtask is a Task where `parentTaskId` is non-null.
 - Subtasks do NOT have their own ListTask rows. Their list membership, projectId, and workspaceId are derived from the parent task.
-- Only one level deep: if a task has a `parentTaskId`, it cannot be set as a `parentTaskId` on another task.
+- Only one level deep: if a task has a `parentTaskId`, it cannot be set as a `parentTaskId` on another task. The API returns 400 if this is attempted. The UI hides the subtask section entirely on subtask detail pages.
 - On creation, a subtask inherits `ownerId` from the parent task (can be null if parent has no owner). The owner can be changed independently after creation.
 - Subtasks have their own: name, description, statusId, ownerId, dueDate, priority, tags, requiresApproval, comments, files.
 - Subtasks do NOT have: list membership, projectId (inherits from parent), subtasks of their own.
@@ -635,11 +635,10 @@ The form pre-populates based on where the user navigated from, so they don't hav
 - Subtask count shown next to the parent task name (e.g. "3 subtasks").
 
 **On the task detail page (`/tasks/[id]`):**
-- Subtasks section below description.
+- Subtasks section is only shown when viewing a top-level task. It is hidden entirely when viewing a subtask — subtasks cannot have subtasks.
 - Displayed as a list: status badge, name, owner.
 - "Add subtask" inline form at the bottom (name required; inherits status default and parent's owner).
-- Only top-level tasks show the Add subtask form — subtasks themselves do not.
-- Each subtask links to its own task detail page.
+- Each subtask links to its own task detail page. The subtask detail page shows no Subtasks section.
 
 **On the client portal task page:**
 - Subtasks shown with status badge, name, and owner.
