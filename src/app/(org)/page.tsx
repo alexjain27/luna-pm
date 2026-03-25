@@ -17,22 +17,31 @@ export default async function DashboardPage() {
   ];
 
   return (
-    <main className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6">
+      {/* Page header */}
+      <div>
+        <h1 className="text-2xl font-semibold text-foreground">Dashboard</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Overview of your workspace activity.
+        </p>
+      </div>
+
+      {/* Stats */}
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
           <div
             key={stat.label}
-            className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm"
+            className="rounded-lg border border-border bg-white p-5 shadow-sm"
           >
-            <p className="text-xs font-semibold uppercase text-zinc-500">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               {stat.label}
             </p>
-            <p className="mt-2 text-2xl font-semibold text-zinc-900">
+            <p className="mt-2 text-3xl font-semibold text-foreground">
               {stat.value}
             </p>
           </div>
         ))}
       </section>
-    </main>
+    </div>
   );
 }

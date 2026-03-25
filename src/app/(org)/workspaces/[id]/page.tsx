@@ -178,7 +178,7 @@ export default async function WorkspaceDetailPage({
       {/* Two-column layout */}
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
         {/* Main content */}
-        <div>
+        <div className="min-w-0">
           <Tabs tabs={[{ id: "projects", label: "Projects & Lists" }, { id: "kanban", label: "Kanban" }]}>
             {/* Projects & Lists Tab */}
             <div className="flex flex-col gap-4">
