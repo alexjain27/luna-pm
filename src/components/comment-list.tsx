@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { formatDate } from "@/lib/utils";
+import { formatDateTime } from "@/lib/utils";
 import { CommentForm } from "@/components/comment-form";
 
 type Reply = {
@@ -40,7 +40,7 @@ export function CommentList({
               <span className="text-sm font-semibold text-zinc-900">
                 {comment.author.name ?? comment.author.email}
               </span>
-              <span className="text-xs text-zinc-400">{formatDate(comment.createdAt)}</span>
+              <span className="text-xs text-zinc-400">{formatDateTime(comment.createdAt)}</span>
             </div>
             <p className="text-sm text-zinc-600 whitespace-pre-wrap">{comment.body}</p>
             <button
@@ -58,7 +58,7 @@ export function CommentList({
                 <span className="text-sm font-semibold text-zinc-900">
                   {reply.author.name ?? reply.author.email}
                 </span>
-                <span className="text-xs text-zinc-400">{formatDate(reply.createdAt)}</span>
+                <span className="text-xs text-zinc-400">{formatDateTime(reply.createdAt)}</span>
               </div>
               <p className="text-sm text-zinc-600 whitespace-pre-wrap">{reply.body}</p>
             </div>

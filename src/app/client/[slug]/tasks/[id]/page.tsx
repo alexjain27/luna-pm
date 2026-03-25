@@ -2,10 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { prisma } from "@/lib/prisma";
-import { formatDate, formatLabel } from "@/lib/utils";
+import { formatDate, formatDateTime, formatLabel } from "@/lib/utils";
 import { StatusBadge } from "@/components/status-badge";
 import { CommentList } from "@/components/comment-list";
 import { EditDescription } from "@/components/edit-description";
+import { EditTaskMeta } from "@/components/edit-task-meta";
 
 export default async function ClientTaskPage({
   params,
@@ -47,6 +48,8 @@ export default async function ClientTaskPage({
   });
 
   if (!task) notFound();
+
+  const statuses = await prisma.taskStatus.findMany({ orderBy: { order: "asc" } });
 
   return (
     <main className="flex flex-col gap-6">
@@ -132,7 +135,7 @@ export default async function ClientTaskPage({
                           <span className="text-sm font-semibold text-zinc-900">
                             {comment.author.name ?? comment.author.email}
                           </span>
-                          <span className="text-xs text-zinc-400">{formatDate(comment.createdAt)}</span>
+                          <span className="text-xs text-zinc-400">{formatDateTime(comment.createdAt)}</span>
                         </div>
                         <p className="text-sm text-zinc-600 whitespace-pre-wrap">{comment.body}</p>
                       </div>
@@ -148,15 +151,13 @@ export default async function ClientTaskPage({
         <div className="flex flex-col gap-4">
           <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
             <h3 className="text-sm font-semibold text-zinc-900 mb-3">Details</h3>
-            <dl className="flex flex-col gap-2 text-sm">
-              <div className="flex justify-between">
-                <dt className="text-zinc-500">Status</dt>
-                <dd><StatusBadge name={task.status.name} color={task.status.color} /></dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-zinc-500">Priority</dt>
-                <dd className="text-zinc-900">{formatLabel(task.priority)}</dd>
-              </div>
+            <EditTaskMeta
+              taskId={task.id}
+              currentStatusId={task.statusId}
+              currentPriority={task.priority}
+              statuses={statuses}
+            />
+            <dl className="flex flex-col gap-2 text-sm mt-3">
               <div className="flex justify-between">
                 <dt className="text-zinc-500">Owner</dt>
                 <dd className="text-zinc-900">{task.owner?.name ?? "—"}</dd>

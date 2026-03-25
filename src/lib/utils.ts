@@ -14,6 +14,17 @@ export function formatDate(value: Date | null | undefined): string {
   });
 }
 
+export function formatDateTime(value: Date | null | undefined): string {
+  if (!value) return "—";
+  return value.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 export function formatLabel(value: string): string {
   return value
     .toLowerCase()

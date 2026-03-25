@@ -9,12 +9,14 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await req.json();
-    const { description } = body;
+    const { description, statusId, priority } = body;
 
-    const task = await prisma.task.update({
-      where: { id },
-      data: { description: description?.trim() || null },
-    });
+    const data: Record<string, unknown> = {};
+    if ("description" in body) data.description = description?.trim() || null;
+    if (statusId) data.statusId = statusId;
+    if (priority) data.priority = priority;
+
+    const task = await prisma.task.update({ where: { id }, data });
 
     return NextResponse.json(task);
   } catch {
