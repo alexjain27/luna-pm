@@ -27,10 +27,10 @@ COPY --from=builder /app/public ./public
 # Prisma schema + migration files — needed at container startup
 COPY --from=builder /app/prisma ./prisma
 
-# Prisma CLI and engines — `prisma` is a devDependency so it's not included in
-# the standalone output. Copy it explicitly so `prisma migrate deploy` works.
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+# Copy full node_modules from builder so `prisma migrate deploy` has all its
+# transitive deps available. The standalone server uses its own embedded
+# node_modules inside .next/standalone, so this only adds size — not conflict.
+COPY --from=builder /app/node_modules ./node_modules
 
 EXPOSE 3000
 
