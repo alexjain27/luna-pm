@@ -55,7 +55,7 @@ export default function OrgLayout({
       <img
         src="/dog.png"
         alt=""
-        className="pointer-events-none fixed bottom-0 right-0 w-56 select-none opacity-90 -z-10"
+        className="pointer-events-none fixed bottom-0 right-0 w-28 select-none opacity-90 z-50"
       />
     </div>
   );

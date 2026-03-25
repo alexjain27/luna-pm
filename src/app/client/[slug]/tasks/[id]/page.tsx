@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { formatDate, formatLabel } from "@/lib/utils";
 import { StatusBadge } from "@/components/status-badge";
+import { CommentList } from "@/components/comment-list";
+import { EditDescription } from "@/components/edit-description";
 
 export default async function ClientTaskPage({
   params,
@@ -14,7 +16,7 @@ export default async function ClientTaskPage({
 
   const workspace = await prisma.workspace.findUnique({
     where: { slug },
-    select: { id: true, type: true },
+    select: { id: true, type: true, primaryUserId: true },
   });
 
   if (!workspace || workspace.type !== "CLIENT") notFound();
@@ -83,12 +85,10 @@ export default async function ClientTaskPage({
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
         <div className="flex flex-col gap-6">
           {/* Description */}
-          {task.description && (
-            <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-              <h3 className="text-sm font-semibold text-zinc-900 mb-2">Description</h3>
-              <p className="text-sm text-zinc-600 whitespace-pre-wrap">{task.description}</p>
-            </section>
-          )}
+          <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+            <h3 className="text-sm font-semibold text-zinc-900 mb-2">Description</h3>
+            <EditDescription taskId={task.id} initialValue={task.description} />
+          </section>
 
           {/* Subtasks */}
           {task.subtasks.length > 0 && (
@@ -114,35 +114,32 @@ export default async function ClientTaskPage({
           {/* Comments */}
           <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
             <h3 className="text-sm font-semibold text-zinc-900 mb-3">Comments</h3>
-            {task.comments.length === 0 ? (
-              <p className="text-sm text-zinc-400 italic">No comments yet.</p>
+            {workspace.primaryUserId ? (
+              <CommentList
+                comments={task.comments}
+                taskId={task.id}
+                authorId={workspace.primaryUserId}
+              />
             ) : (
-              <div className="flex flex-col gap-4">
-                {task.comments.map((comment) => (
-                  <div key={comment.id} className="flex flex-col gap-2">
-                    <div className="rounded-lg bg-zinc-50 p-4">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-semibold text-zinc-900">
-                          {comment.author.name ?? comment.author.email}
-                        </span>
-                        <span className="text-xs text-zinc-400">{formatDate(comment.createdAt)}</span>
-                      </div>
-                      <p className="text-sm text-zinc-600 whitespace-pre-wrap">{comment.body}</p>
-                    </div>
-                    {comment.replies.map((reply) => (
-                      <div key={reply.id} className="ml-8 rounded-lg bg-zinc-50 p-4">
+              task.comments.length === 0 ? (
+                <p className="text-sm text-zinc-400 italic">No comments yet.</p>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  {task.comments.map((comment) => (
+                    <div key={comment.id} className="flex flex-col gap-2">
+                      <div className="rounded-lg bg-zinc-50 p-4">
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-sm font-semibold text-zinc-900">
-                            {reply.author.name ?? reply.author.email}
+                            {comment.author.name ?? comment.author.email}
                           </span>
-                          <span className="text-xs text-zinc-400">{formatDate(reply.createdAt)}</span>
+                          <span className="text-xs text-zinc-400">{formatDate(comment.createdAt)}</span>
                         </div>
-                        <p className="text-sm text-zinc-600 whitespace-pre-wrap">{reply.body}</p>
+                        <p className="text-sm text-zinc-600 whitespace-pre-wrap">{comment.body}</p>
                       </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
+                    </div>
+                  ))}
+                </div>
+              )
             )}
           </section>
         </div>

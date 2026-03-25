@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { formatDate, formatLabel } from "@/lib/utils";
 import { StatusBadge } from "@/components/status-badge";
 import { ExpandableSection } from "@/components/expandable-section";
+import { NewTaskForm } from "./new-task-form";
 
 export default async function ClientProjectPage({
   params,
@@ -15,7 +16,7 @@ export default async function ClientProjectPage({
 
   const workspace = await prisma.workspace.findUnique({
     where: { slug },
-    select: { id: true, type: true },
+    select: { id: true, type: true, primaryUserId: true },
   });
 
   if (!workspace || workspace.type !== "CLIENT") notFound();
@@ -55,6 +56,11 @@ export default async function ClientProjectPage({
   });
 
   if (!project) notFound();
+
+  const defaultStatus = await prisma.taskStatus.findFirst({
+    where: { isDefault: true },
+    select: { id: true },
+  });
 
   const directTasks = project.tasks.filter((t) => t.lists.length === 0);
 
@@ -99,8 +105,8 @@ export default async function ClientProjectPage({
 
       {/* Tasks */}
       <div className="flex flex-col gap-4">
-        {directTasks.length > 0 && (
-          <ExpandableSection title="Direct Tasks" count={directTasks.length} defaultOpen>
+        <ExpandableSection title="Direct Tasks" count={directTasks.length} defaultOpen>
+          {directTasks.length > 0 && (
             <div className="overflow-hidden rounded-lg border border-zinc-200">
               <table className="w-full text-left text-sm">
                 <thead className="bg-zinc-50 text-xs uppercase text-zinc-500">
@@ -137,14 +143,21 @@ export default async function ClientProjectPage({
                 </tbody>
               </table>
             </div>
-          </ExpandableSection>
-        )}
+          )}
+          {defaultStatus && (
+            <NewTaskForm
+              workspaceId={workspace.id}
+              projectId={project.id}
+              listId={null}
+              defaultStatusId={defaultStatus.id}
+              requestorId={workspace.primaryUserId ?? null}
+            />
+          )}
+        </ExpandableSection>
 
         {project.lists.map((list) => (
           <ExpandableSection key={list.id} title={list.name} count={list.tasks.length} defaultOpen>
-            {list.tasks.length === 0 ? (
-              <p className="text-xs italic text-zinc-400">No tasks in this list.</p>
-            ) : (
+            {list.tasks.length > 0 && (
               <div className="overflow-hidden rounded-lg border border-zinc-200">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-zinc-50 text-xs uppercase text-zinc-500">
@@ -181,6 +194,15 @@ export default async function ClientProjectPage({
                   </tbody>
                 </table>
               </div>
+            )}
+            {defaultStatus && (
+              <NewTaskForm
+                workspaceId={workspace.id}
+                projectId={project.id}
+                listId={list.id}
+                defaultStatusId={defaultStatus.id}
+                requestorId={workspace.primaryUserId ?? null}
+              />
             )}
           </ExpandableSection>
         ))}
