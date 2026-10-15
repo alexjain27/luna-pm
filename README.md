@@ -70,6 +70,35 @@ npm run db:generate      # Regenerate Prisma client after schema changes
 npm run db:reset         # Reset DB and reseed from scratch
 ```
 
+## Deployment (AWS via SST)
+
+`sst.config.ts` deploys the app to AWS with [SST](https://sst.dev): a VPC, an RDS Postgres database in private subnets, the private S3 assets bucket, and the Next.js app on Lambda + CloudFront (via OpenNext). The app reaches S3 through its IAM role, so no AWS access keys are stored in its environment.
+
+Prerequisites: AWS credentials for the target account in your shell, and an SMTP server for magic-link email (for example Amazon SES SMTP credentials).
+
+First deploy of a stage (`production` here):
+
+```bash
+# 1. Secrets (once per stage)
+npx sst secret set NextAuthSecret "$(openssl rand -base64 32)" --stage production
+npx sst secret set EmailServer "smtp://USER:PASS@email-smtp.us-east-1.amazonaws.com:587" --stage production
+npx sst secret set EmailFrom "Luna PM <noreply@yourdomain.com>" --stage production
+
+# 2. Deploy — prints the app URL
+npx sst deploy --stage production
+
+# 3. Run migrations through the VPC bastion
+sudo npx sst tunnel install                     # once per machine
+npx sst tunnel --stage production               # keep running in another terminal
+npx sst shell --stage production --target Web -- npx prisma migrate deploy
+```
+
+Later deploys: run `npx sst deploy --stage production`, then step 3's last command whenever there are new migrations.
+
+The `production` stage is protected and its resources are retained on removal; any other stage is torn down by `npx sst remove --stage <name>`. Running cost at idle is roughly an RDS `t4g.micro`, a `t4g.nano` NAT/bastion instance, and storage — on the order of $20/month — plus Lambda, CloudFront and S3 usage.
+
+`npx sst dev` runs the app locally against the docker-compose Postgres on port 5433.
+
 ## Project Structure
 
 ```
