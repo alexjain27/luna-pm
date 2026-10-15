@@ -36,6 +36,12 @@ Feature specs live in `docs/`. Always read the relevant spec before implementing
 
 When I write new specs, they will go in `docs/` following the same pattern.
 
+## Agents and skills
+
+- `.claude/agents/` — subagents: `code-reviewer` (writes reviews to `docs/code-reviews/`) and `investigator` (writes investigations to `docs/investigations/`)
+- `.claude/skills/` — skills: `grilling`, `grill-with-docs`, `domain-modeling`, `handoff`, `to-spec`, `to-tickets`, `wayfinder`, `graphify`
+- `.agents/skills` is a symlink to `.claude/skills` for other agent tools; edit the files under `.claude/`
+
 ## Commands
 
 ```bash
