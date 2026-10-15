@@ -2,52 +2,48 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 
-const navItems = [
-  { href: "/", label: "Dashboard" },
-  { href: "/workspaces", label: "Workspaces" },
-  { href: "/projects", label: "Projects" },
-  { href: "/tasks", label: "Tasks" },
-  { href: "/lists", label: "Lists" },
-  { href: "/statuses", label: "Statuses" },
-];
+import { prisma } from "@/lib/prisma";
+import { SidebarTree } from "./sidebar-tree";
 
-export default function OrgLayout({
+export default async function OrgLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const workspaces = await prisma.workspace.findMany({
+    orderBy: { name: "asc" },
+    select: {
+      id: true,
+      name: true,
+      type: true,
+      projects: {
+        orderBy: { name: "asc" },
+        select: {
+          id: true,
+          name: true,
+          lists: { orderBy: { name: "asc" }, select: { id: true, name: true } },
+        },
+      },
+    },
+  });
+
   return (
-    <div className="min-h-screen bg-background">
-      {/* Top nav */}
-      <header className="sticky top-0 z-40 h-16 w-full bg-white shadow-[0_3px_3px_0_rgba(111,114,132,0.04)] border-b border-border">
-        <div className="flex h-full items-center justify-between px-12">
-          {/* Left */}
-          <div className="flex items-center gap-6">
-            <span className="text-sm font-semibold text-foreground tracking-tight">
-              Luna PM
-            </span>
-            <div className="h-4 w-px bg-border" />
-            <nav className="flex items-center gap-1">
-              {navItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
-          </div>
-          {/* Right */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Admin</span>
-          </div>
+    <div className="flex h-screen bg-background">
+      {/* Sidebar */}
+      <aside className="flex w-64 shrink-0 flex-col border-r border-border bg-white">
+        <div className="flex h-12 items-center border-b border-border px-4">
+          <Link href="/" className="text-sm font-semibold tracking-tight text-foreground">
+            Luna PM
+          </Link>
         </div>
-      </header>
+        <SidebarTree workspaces={workspaces} />
+        <div className="border-t border-border px-4 py-3 text-xs text-muted-foreground">
+          Admin
+        </div>
+      </aside>
 
       {/* Page content */}
-      <main className="mx-auto max-w-7xl px-12 py-8">
+      <main className="min-w-0 flex-1 overflow-y-auto px-8 py-6">
         {children}
       </main>
 

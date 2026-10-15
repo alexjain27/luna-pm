@@ -3,11 +3,13 @@
 import { useState } from "react";
 
 export function ExpandableSection({
+  id,
   title,
   count,
   defaultOpen = false,
   children,
 }: {
+  id?: string;
   title: string;
   count?: number;
   defaultOpen?: boolean;
@@ -16,7 +18,7 @@ export function ExpandableSection({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <div className="border border-gray-200 rounded-lg">
+    <div id={id} className="scroll-mt-4 border border-gray-200 rounded-lg">
       <button
         onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors"

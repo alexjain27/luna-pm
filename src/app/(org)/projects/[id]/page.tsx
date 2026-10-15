@@ -1,13 +1,18 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { List as ListIcon } from "lucide-react";
 
 import { prisma } from "@/lib/prisma";
-import { formatDate, formatLabel } from "@/lib/utils";
-import { StatusBadge } from "@/components/status-badge";
-import { Tabs } from "@/components/tabs";
+import { formatDate } from "@/lib/utils";
 import { ExpandableSection } from "@/components/expandable-section";
 import { KanbanBoard } from "@/components/kanban-board";
 import { FileTree } from "@/components/file-tree";
+import { PageHeader, parseView } from "@/components/page-header";
+import { OverviewCard } from "@/components/overview-card";
+import { ProgressBar } from "@/components/progress-bar";
+import { ProjectStatusBadge } from "@/components/project-status-badge";
+import { RecentTasks } from "@/components/recent-tasks";
+import { TaskTable } from "@/components/task-table";
 
 interface TreeFolder {
   id: string;
@@ -31,10 +36,13 @@ function buildFolderTree(
 
 export default async function ProjectDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ view?: string }>;
 }) {
   const { id } = await params;
+  const view = parseView((await searchParams).view);
 
   const project = await prisma.project.findUnique({
     where: { id },
@@ -49,6 +57,7 @@ export default async function ProjectDetailPage({
           lists: { include: { list: true } },
           _count: { select: { subtasks: true } },
         },
+        orderBy: { updatedAt: "desc" },
       },
       lists: {
         orderBy: { name: "asc" },
@@ -84,6 +93,10 @@ export default async function ProjectDetailPage({
     where: { state: "ACTIVE" },
     orderBy: { order: "asc" },
   });
+  // Statuses are ordered as a workflow; a task in the last one counts as complete.
+  const doneStatusId = statuses.at(-1)?.id;
+  const countDone = (tasks: { statusId: string }[]) =>
+    tasks.filter((t) => t.statusId === doneStatusId).length;
 
   const directTasks = project.tasks.filter((t) => t.lists.length === 0);
 
@@ -97,168 +110,153 @@ export default async function ProjectDetailPage({
     groupLabel: t.lists.length > 0 ? t.lists.map((l) => l.list.name).join(", ") : "Direct",
   }));
 
+  const recentTasks = project.tasks.slice(0, 8).map((t) => ({
+    id: t.id,
+    name: t.name,
+    location: t.lists.length > 0 ? t.lists.map((l) => l.list.name).join(", ") : project.name,
+    status: t.status,
+  }));
+
   const folderTree = buildFolderTree(project.folders);
   const rootFiles = project.files;
+  const basePath = `/projects/${project.id}`;
 
   return (
-    <main className="flex flex-col gap-6">
-      {/* Header */}
-      <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 text-xs">
-              <Link href={`/workspaces/${project.workspace.id}`} className="text-zinc-500 hover:underline">
-                {project.workspace.name}
-              </Link>
-              <span className="text-zinc-300">/</span>
-              <span className="font-semibold uppercase tracking-wide text-zinc-500">Project</span>
-            </div>
-            <h2 className="mt-1 text-2xl font-semibold text-zinc-900">
-              {project.name}
-            </h2>
-            <div className="mt-2 flex flex-wrap items-center gap-3">
-              <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                project.status === "ACTIVE" ? "bg-emerald-50 text-emerald-700" :
-                project.status === "PENDING" ? "bg-amber-50 text-amber-700" :
-                project.status === "INTAKE" ? "bg-blue-50 text-blue-700" :
-                "bg-zinc-100 text-zinc-600"
-              }`}>
-                {formatLabel(project.status)}
-              </span>
-              {project.startDate && (
-                <span className="text-sm text-zinc-500">
-                  {formatDate(project.startDate)} — {formatDate(project.endDate)}
-                </span>
-              )}
-            </div>
-            {project.description && (
-              <p className="mt-2 text-sm text-zinc-600">{project.description}</p>
-            )}
-            {project.customFieldValues.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-3 text-sm">
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        breadcrumbs={[
+          { label: project.workspace.name, href: `/workspaces/${project.workspace.id}` },
+          { label: "Project" },
+        ]}
+        title={project.name}
+        badge={<ProjectStatusBadge status={project.status} />}
+        actions={
+          <Link
+            href={`/tasks/new?workspaceId=${project.workspace.id}&projectId=${project.id}`}
+            className="rounded bg-black px-3 py-2 text-xs font-semibold text-white"
+          >
+            New task
+          </Link>
+        }
+        basePath={basePath}
+        activeView={view}
+      />
+
+      {view === "overview" && (
+        <>
+          <div className="grid gap-4 lg:grid-cols-3">
+            <OverviewCard title="Recent">
+              <RecentTasks tasks={recentTasks} />
+            </OverviewCard>
+
+            <OverviewCard title="Assets">
+              <FileTree folders={folderTree} rootFiles={rootFiles} />
+            </OverviewCard>
+
+            <OverviewCard title="Details">
+              <dl className="flex flex-col gap-2 text-sm">
+                <div className="flex justify-between gap-3">
+                  <dt className="text-zinc-500">Dates</dt>
+                  <dd className="text-zinc-900">
+                    {project.startDate
+                      ? `${formatDate(project.startDate)} — ${formatDate(project.endDate)}`
+                      : "—"}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <dt className="text-zinc-500">Progress</dt>
+                  <dd>
+                    <ProgressBar done={countDone(project.tasks)} total={project.tasks.length} />
+                  </dd>
+                </div>
                 {project.customFieldValues.map((cfv) => (
-                  <span key={cfv.id} className="text-zinc-500">
-                    <span className="font-medium text-zinc-700">{cfv.customField.name}:</span> {cfv.value}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="flex gap-2">
-            <Link
-              href={`/tasks/new?workspaceId=${project.workspace.id}&projectId=${project.id}`}
-              className="rounded bg-black px-3 py-2 text-xs font-semibold text-white"
-            >
-              New task
-            </Link>
-            <Link
-              href={`/workspaces/${project.workspace.id}`}
-              className="rounded border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-700"
-            >
-              Back
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* Two-column layout */}
-      <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
-        <div>
-          <Tabs tabs={[{ id: "lists", label: "Lists" }, { id: "kanban", label: "Kanban" }]}>
-            {/* Lists Tab */}
-            <div className="flex flex-col gap-4">
-              {/* Direct project tasks */}
-              {directTasks.length > 0 && (
-                <ExpandableSection title="Direct Tasks" count={directTasks.length} defaultOpen>
-                  <div className="overflow-hidden rounded-lg border border-zinc-200">
-                    <table className="w-full text-left text-sm">
-                      <thead className="bg-zinc-50 text-xs uppercase text-zinc-500">
-                        <tr>
-                          <th className="px-3 py-2 font-semibold">Task</th>
-                          <th className="px-3 py-2 font-semibold">Owner</th>
-                          <th className="px-3 py-2 font-semibold">Status</th>
-                          <th className="px-3 py-2 font-semibold">Due</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {directTasks.map((task) => (
-                          <tr key={task.id} className="border-t border-zinc-200">
-                            <td className="px-3 py-2">
-                              <Link href={`/tasks/${task.id}`} className="font-medium text-zinc-900 hover:underline">
-                                {task.name}
-                              </Link>
-                              {task._count.subtasks > 0 && (
-                                <span className="ml-1 text-xs text-zinc-400">+{task._count.subtasks}</span>
-                              )}
-                            </td>
-                            <td className="px-3 py-2 text-zinc-600">{task.owner?.name ?? "—"}</td>
-                            <td className="px-3 py-2"><StatusBadge name={task.status.name} color={task.status.color} /></td>
-                            <td className="px-3 py-2 text-zinc-600">{formatDate(task.dueDate)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div key={cfv.id} className="flex justify-between gap-3">
+                    <dt className="text-zinc-500">{cfv.customField.name}</dt>
+                    <dd className="text-right text-zinc-900">{cfv.value}</dd>
                   </div>
-                </ExpandableSection>
+                ))}
+                {project.description && (
+                  <p className="mt-2 border-t border-zinc-100 pt-2 text-zinc-600">
+                    {project.description}
+                  </p>
+                )}
+              </dl>
+            </OverviewCard>
+          </div>
+
+          <OverviewCard title="Lists" className="min-h-0">
+            <table className="w-full text-left text-sm">
+              <thead className="text-xs text-zinc-500">
+                <tr className="border-b border-zinc-100">
+                  <th className="py-2 pr-3 font-medium">Name</th>
+                  <th className="px-3 py-2 font-medium">Progress</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  { id: null, name: "Direct tasks", tasks: directTasks },
+                  ...project.lists.map((list) => ({
+                    id: list.id,
+                    name: list.name,
+                    tasks: list.tasks.map((lt) => lt.task),
+                  })),
+                ].map((row) => (
+                  <tr key={row.id ?? "direct"} className="border-b border-zinc-100 last:border-b-0">
+                    <td className="py-2 pr-3">
+                      <Link
+                        href={`${basePath}?view=list${row.id ? `#list-${row.id}` : ""}`}
+                        className="flex items-center gap-2 font-medium text-zinc-900 hover:underline"
+                      >
+                        <ListIcon className="size-4 text-zinc-400" />
+                        {row.name}
+                      </Link>
+                    </td>
+                    <td className="px-3 py-2">
+                      <ProgressBar done={countDone(row.tasks)} total={row.tasks.length} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </OverviewCard>
+        </>
+      )}
+
+      {view === "list" && (
+        <div className="flex flex-col gap-4">
+          {/* Direct project tasks */}
+          {directTasks.length > 0 && (
+            <ExpandableSection title="Direct Tasks" count={directTasks.length} defaultOpen>
+              <TaskTable tasks={directTasks} />
+            </ExpandableSection>
+          )}
+
+          {/* Sublists */}
+          {project.lists.map((list) => (
+            <ExpandableSection
+              key={list.id}
+              id={`list-${list.id}`}
+              title={list.name}
+              count={list.tasks.length}
+              defaultOpen
+            >
+              {list.tasks.length === 0 ? (
+                <p className="text-xs italic text-zinc-400">No tasks in this list.</p>
+              ) : (
+                <TaskTable tasks={list.tasks.map((lt) => lt.task)} />
               )}
+            </ExpandableSection>
+          ))}
 
-              {/* Sublists */}
-              {project.lists.map((list) => (
-                <ExpandableSection key={list.id} title={list.name} count={list.tasks.length} defaultOpen>
-                  {list.tasks.length === 0 ? (
-                    <p className="text-xs italic text-zinc-400">No tasks in this list.</p>
-                  ) : (
-                    <div className="overflow-hidden rounded-lg border border-zinc-200">
-                      <table className="w-full text-left text-sm">
-                        <thead className="bg-zinc-50 text-xs uppercase text-zinc-500">
-                          <tr>
-                            <th className="px-3 py-2 font-semibold">Task</th>
-                            <th className="px-3 py-2 font-semibold">Owner</th>
-                            <th className="px-3 py-2 font-semibold">Status</th>
-                            <th className="px-3 py-2 font-semibold">Due</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {list.tasks.map((lt) => (
-                            <tr key={lt.id} className="border-t border-zinc-200">
-                              <td className="px-3 py-2">
-                                <Link href={`/tasks/${lt.task.id}`} className="font-medium text-zinc-900 hover:underline">
-                                  {lt.task.name}
-                                </Link>
-                                {lt.task._count.subtasks > 0 && (
-                                  <span className="ml-1 text-xs text-zinc-400">+{lt.task._count.subtasks}</span>
-                                )}
-                              </td>
-                              <td className="px-3 py-2 text-zinc-600">{lt.task.owner?.name ?? "—"}</td>
-                              <td className="px-3 py-2"><StatusBadge name={lt.task.status.name} color={lt.task.status.color} /></td>
-                              <td className="px-3 py-2 text-zinc-600">{formatDate(lt.task.dueDate)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </ExpandableSection>
-              ))}
-
-              {directTasks.length === 0 && project.lists.length === 0 && (
-                <p className="rounded-xl border border-dashed border-zinc-200 p-6 text-sm text-zinc-500">
-                  No tasks or lists yet.
-                </p>
-              )}
-            </div>
-
-            {/* Kanban Tab */}
-            <KanbanBoard statuses={statuses} tasks={kanbanTasks} />
-          </Tabs>
+          {directTasks.length === 0 && project.lists.length === 0 && (
+            <p className="rounded-xl border border-dashed border-zinc-200 p-6 text-sm text-zinc-500">
+              No tasks or lists yet.
+            </p>
+          )}
         </div>
+      )}
 
-        {/* Sidebar */}
-        <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
-          <h3 className="text-sm font-semibold text-zinc-900 mb-3">Assets</h3>
-          <FileTree folders={folderTree} rootFiles={rootFiles} />
-        </div>
-      </div>
-    </main>
+      {view === "board" && <KanbanBoard statuses={statuses} tasks={kanbanTasks} />}
+    </div>
   );
 }
