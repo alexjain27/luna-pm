@@ -40,6 +40,7 @@ When I write new specs, they will go in `docs/` following the same pattern.
 
 - `.claude/agents/` — subagents: `code-reviewer` (writes reviews to `docs/code-reviews/`) and `investigator` (writes investigations to `docs/investigations/`)
 - `.claude/skills/` — skills: `grilling`, `grill-with-docs`, `domain-modeling`, `handoff`, `to-spec`, `to-tickets`, `wayfinder`, `graphify`
+- Neon skills (`neon`, `neon-postgres`, `neon-postgres-branches` and others) are installed by `npx neon skills -y` and pinned in `skills-lock.json`; rerun that command to update them rather than editing them
 - `.agents/skills` is a symlink to `.claude/skills` for other agent tools; edit the files under `.claude/`
 
 ## Commands
