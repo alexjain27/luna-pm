@@ -74,14 +74,14 @@ npm run db:reset         # Reset DB and reseed from scratch
 
 `sst.config.ts` deploys the app to AWS with [SST](https://sst.dev): a VPC, an RDS Postgres database in private subnets, the private S3 assets bucket, and the Next.js app on Lambda + CloudFront (via OpenNext). The app reaches S3 through its IAM role, so no AWS access keys are stored in its environment.
 
-Prerequisites: AWS credentials for the target account in your shell, and an SMTP server for magic-link email (for example Amazon SES SMTP credentials).
+The app deploys to `us-west-2` (set in `sst.config.ts`). Prerequisites: AWS credentials for the target account in your shell, and an SMTP server for magic-link email (for example Amazon SES SMTP credentials).
 
 First deploy of a stage (`production` here):
 
 ```bash
 # 1. Secrets (once per stage)
 npx sst secret set NextAuthSecret "$(openssl rand -base64 32)" --stage production
-npx sst secret set EmailServer "smtp://USER:PASS@email-smtp.us-east-1.amazonaws.com:587" --stage production
+npx sst secret set EmailServer "smtp://USER:PASS@email-smtp.us-west-2.amazonaws.com:587" --stage production
 npx sst secret set EmailFrom "Luna PM <noreply@yourdomain.com>" --stage production
 
 # 2. Deploy — prints the app URL
