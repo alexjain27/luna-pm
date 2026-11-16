@@ -11,6 +11,9 @@ import { EditTaskName } from "@/components/edit-task-name";
 import { AddSubtaskForm } from "@/components/add-subtask-form";
 import { TaskFileUpload } from "@/components/task-file-upload";
 import { TaskActivityLog } from "@/components/task-activity-log";
+import { TaskTimerButton } from "@/components/task-timer-button";
+import { formatHours, liveMinutes } from "@/lib/billing";
+import { getCurrentUser } from "@/lib/current-user";
 
 export default async function TaskDetailPage({
   params,
@@ -66,6 +69,16 @@ export default async function TaskDetailPage({
     where: { role: "ADMIN" },
     select: { id: true },
   });
+
+  const [currentUser, taskEntries] = await Promise.all([
+    getCurrentUser(),
+    prisma.timeEntry.findMany({
+      where: { taskId: id },
+      select: { id: true, userId: true, minutes: true, timerStartedAt: true },
+    }),
+  ]);
+  const loggedMinutes = taskEntries.reduce((s, e) => s + liveMinutes(e), 0);
+  const runningEntry = taskEntries.find((e) => e.userId === currentUser.id && e.timerStartedAt);
 
   const breadcrumbs = [
     { label: task.workspace.name, href: `/workspaces/${task.workspace.id}` },
@@ -171,6 +184,29 @@ export default async function TaskDetailPage({
 
         {/* Sidebar */}
         <div className="flex flex-col gap-4">
+          {/* Time */}
+          {task.projectId && (
+            <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
+              <div className="mb-3 flex items-baseline justify-between">
+                <h3 className="text-sm font-semibold text-zinc-900">Time</h3>
+                <span className="text-sm tabular-nums text-zinc-700">
+                  {formatHours(loggedMinutes)} h
+                  {task.timeEstimate ? (
+                    <span className="text-zinc-400"> / {formatHours(task.timeEstimate)} h est.</span>
+                  ) : null}
+                </span>
+              </div>
+              {task.timeEstimate ? (
+                <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-zinc-100">
+                  <div
+                    className={`h-full rounded-full ${loggedMinutes > task.timeEstimate ? "bg-red-500" : "bg-emerald-500"}`}
+                    style={{ width: `${Math.min(100, (loggedMinutes / task.timeEstimate) * 100)}%` }}
+                  />
+                </div>
+              ) : null}
+              <TaskTimerButton projectId={task.projectId} taskId={task.id} runningEntryId={runningEntry?.id ?? null} />
+            </div>
+          )}
           {/* Details */}
           <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
             <h3 className="text-sm font-semibold text-zinc-900 mb-3">Details</h3>

@@ -4,6 +4,13 @@ const prisma = new PrismaClient();
 
 async function main() {
   // Clean up existing data in dependency order
+  await prisma.invoiceLineItem.deleteMany();
+  await prisma.timeEntry.deleteMany();
+  await prisma.expense.deleteMany();
+  await prisma.invoice.deleteMany();
+  await prisma.expenseCategory.deleteMany();
+  await prisma.projectMemberRate.deleteMany();
+  await prisma.billingSettings.deleteMany();
   await prisma.taskCommentFile.deleteMany();
   await prisma.taskComment.deleteMany();
   await prisma.taskApproval.deleteMany();
@@ -611,12 +618,175 @@ async function main() {
     },
   });
 
+
+  // ── Time tracking, expenses & invoicing ───────────────
+  // Dates are relative to today so the timesheet always has recent data.
+
+  const DAY = 24 * 60 * 60 * 1000;
+  const today = new Date();
+  const todayUtc = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  const daysAgo = (n) => new Date(todayUtc - n * DAY);
+  const isWeekend = (d) => d.getUTCDay() === 0 || d.getUTCDay() === 6;
+
+  await prisma.billingSettings.create({
+    data: {
+      id: "default",
+      companyName: "Luna Design Studio",
+      companyAddress: "85 Broad St\nNew York, NY 10004",
+      currency: "USD",
+      invoicePrefix: "INV-",
+      nextInvoiceNumber: 1001,
+      defaultTaxRate: 0,
+      paymentTermsDays: 30,
+      invoiceNotes: "Payment by ACH or check within 30 days. Thank you!",
+    },
+  });
+
+  await prisma.user.update({ where: { id: adminUser.id }, data: { defaultRateCents: 15000 } });
+  await prisma.user.update({ where: { id: samUser.id }, data: { defaultRateCents: 9500 } });
+
+  await prisma.project.update({
+    where: { id: brooklynProject.id },
+    data: { hourlyRateCents: 14000, budgetMinutes: 120 * 60 },
+  });
+  await prisma.project.update({
+    where: { id: tribecaProject.id },
+    data: { hourlyRateCents: 12500, budgetMinutes: 40 * 60 },
+  });
+  await prisma.project.update({ where: { id: websiteProject.id }, data: { billable: false } });
+  await prisma.projectMemberRate.create({
+    data: { projectId: brooklynProject.id, userId: adminUser.id, hourlyRateCents: 17500 },
+  });
+
+  const rateFor = { [brooklynProject.id]: { [adminUser.id]: 17500, [samUser.id]: 14000 }, [tribecaProject.id]: { [adminUser.id]: 12500, [samUser.id]: 12500 } };
+
+  const [materials, travel, samples, delivery] = await Promise.all(
+    ["Materials", "Travel", "Samples", "Delivery"].map((name) => prisma.expenseCategory.create({ data: { name } }))
+  );
+
+  // Work pattern: [projectId, taskId, userId, minutes, notes]
+  const pattern = [
+    [brooklynProject.id, floorPlanTask.id, adminUser.id, 120, "Revised kitchen layout"],
+    [brooklynProject.id, moodboardTask.id, samUser.id, 90, "Living room palette options"],
+    [brooklynProject.id, sourcePendantsTask.id, samUser.id, 60, "Vendor calls for pendants"],
+    [tribecaProject.id, artworkTask.id, adminUser.id, 75, "Gallery visit, shortlist"],
+    [tribecaProject.id, furnitureTask.id, samUser.id, 105, "Sofa + rug sourcing"],
+    [websiteProject.id, wireframesTask.id, samUser.id, 45, "Homepage wireframe"],
+    [brooklynProject.id, null, adminUser.id, 30, "Client check-in call"],
+    [websiteProject.id, brandGuideTask.id, adminUser.id, 60, "Type + color tokens"],
+  ];
+
+  const entries = [];
+  for (let n = 45; n >= 1; n--) {
+    const date = daysAgo(n);
+    if (isWeekend(date)) continue;
+    // 3 entries per weekday, rotating through the pattern
+    for (let k = 0; k < 3; k++) {
+      const [projectId, taskId, userId, minutes, notes] = pattern[(n * 3 + k) % pattern.length];
+      const billable = projectId !== websiteProject.id;
+      entries.push({
+        userId,
+        projectId,
+        taskId,
+        date,
+        minutes: minutes + ((n + k) % 3) * 15,
+        notes,
+        billable,
+        rateCents: billable ? rateFor[projectId][userId] : 0,
+      });
+    }
+  }
+  // Today: one finished entry and a running timer for the admin user
+  entries.push({
+    userId: adminUser.id,
+    projectId: brooklynProject.id,
+    taskId: kitchenInstallTask.id,
+    date: daysAgo(0),
+    minutes: 45,
+    notes: "Site walk with contractor",
+    billable: true,
+    rateCents: 17500,
+  });
+  entries.push({
+    userId: adminUser.id,
+    projectId: tribecaProject.id,
+    taskId: furnitureTask.id,
+    date: daysAgo(0),
+    minutes: 20,
+    notes: "Finalize furniture order",
+    billable: true,
+    rateCents: 12500,
+    timerStartedAt: new Date(Date.now() - 12 * 60 * 1000),
+  });
+  await prisma.timeEntry.createMany({ data: entries });
+
+  await prisma.expense.createMany({
+    data: [
+      { userId: adminUser.id, projectId: brooklynProject.id, categoryId: samples.id, date: daysAgo(40), amountCents: 18500, notes: "Tile samples", billable: true },
+      { userId: samUser.id, projectId: brooklynProject.id, categoryId: travel.id, date: daysAgo(33), amountCents: 4200, notes: "Car service to showroom", billable: true },
+      { userId: samUser.id, projectId: tribecaProject.id, categoryId: delivery.id, date: daysAgo(12), amountCents: 22500, notes: "Rug delivery", billable: true },
+      { userId: adminUser.id, projectId: brooklynProject.id, categoryId: materials.id, date: daysAgo(6), amountCents: 64000, notes: "Wallpaper — 4 rolls", billable: true },
+      { userId: adminUser.id, projectId: websiteProject.id, categoryId: materials.id, date: daysAgo(9), amountCents: 2900, notes: "Font license", billable: false },
+    ],
+  });
+
+  // Invoice older work: one paid invoice (days 45–31) and one sent invoice (days 30–16)
+  async function seedInvoice(number, fromDays, toDays, status) {
+    const where = {
+      project: { workspaceId: crescentWorkspace.id },
+      billable: true,
+      invoiceId: null,
+      date: { gte: daysAgo(fromDays), lte: daysAgo(toDays) },
+    };
+    const [time, exps] = await Promise.all([
+      prisma.timeEntry.findMany({ where: { ...where, timerStartedAt: null }, include: { project: true, task: true } }),
+      prisma.expense.findMany({ where, include: { project: true, category: true } }),
+    ]);
+    const groups = new Map();
+    for (const e of time) {
+      const key = `${e.projectId}|${e.taskId ?? ""}|${e.rateCents}`;
+      const g = groups.get(key) ?? { description: `${e.project.name} — ${e.task ? e.task.name : "General"}`, minutes: 0, rateCents: e.rateCents };
+      g.minutes += e.minutes;
+      groups.set(key, g);
+    }
+    const lines = [...groups.values()].map((g) => {
+      const quantity = Math.round((g.minutes / 60) * 100) / 100;
+      return { kind: "SERVICE", description: g.description, quantity, unitPriceCents: g.rateCents, amountCents: Math.round(quantity * g.rateCents) };
+    });
+    for (const x of exps) {
+      lines.push({ kind: "EXPENSE", description: `${x.project.name} — ${x.category.name}: ${x.notes}`, quantity: 1, unitPriceCents: x.amountCents, amountCents: x.amountCents });
+    }
+    const issueDate = daysAgo(toDays - 1);
+    const invoice = await prisma.invoice.create({
+      data: {
+        number,
+        workspaceId: crescentWorkspace.id,
+        status,
+        subject: "Interior design services",
+        issueDate,
+        dueDate: new Date(issueDate.getTime() + 30 * DAY),
+        periodStart: daysAgo(fromDays),
+        periodEnd: daysAgo(toDays),
+        notes: "Payment by ACH or check within 30 days. Thank you!",
+        sentAt: issueDate,
+        paidAt: status === "PAID" ? daysAgo(toDays - 10) : null,
+        lineItems: { create: lines.map((l, i) => ({ ...l, order: i })) },
+      },
+    });
+    await prisma.timeEntry.updateMany({ where: { id: { in: time.map((e) => e.id) } }, data: { invoiceId: invoice.id } });
+    await prisma.expense.updateMany({ where: { id: { in: exps.map((e) => e.id) } }, data: { invoiceId: invoice.id } });
+  }
+  await seedInvoice("INV-1001", 45, 31, "PAID");
+  await seedInvoice("INV-1002", 30, 16, "SENT");
+  await prisma.billingSettings.update({ where: { id: "default" }, data: { nextInvoiceNumber: 1003 } });
+
   console.log("Seed complete.");
   console.log(`  Workspaces: ${crescentWorkspace.name}, ${internalWorkspace.name}`);
   console.log(`  Projects: 4`);
   console.log(`  Lists: 5`);
   console.log(`  Tasks: 18 (including 3 subtasks)`);
   console.log(`  Comments: 4 (with threading)`);
+  console.log(`  Time entries: ${entries.length}, expenses: 5, invoices: 2`);
 }
 
 main()

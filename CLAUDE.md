@@ -33,6 +33,7 @@ Feature specs live in `docs/`. Always read the relevant spec before implementing
 - `docs/architecture.md` — Overarching architecture, conventions, and patterns. **Read this first.**
 - `docs/task-hierarchy.md` — Client > Project > List > Task hierarchy and access model
 - `docs/file-asset-management.md` — Folder/file structure and visibility rules
+- `docs/time-billing.md` — Time tracking, expenses, reports and invoicing (Harvest-style)
 
 When I write new specs, they will go in `docs/` following the same pattern.
 

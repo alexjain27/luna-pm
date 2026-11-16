@@ -24,7 +24,7 @@ export default async function ClientPortalLayout({
   return (
     <div className="min-h-screen bg-background">
       {/* Top nav */}
-      <header className="sticky top-0 z-40 h-16 w-full bg-white shadow-[0_3px_3px_0_rgba(111,114,132,0.04)] border-b border-border">
+      <header className="print:hidden sticky top-0 z-40 h-16 w-full bg-white shadow-[0_3px_3px_0_rgba(111,114,132,0.04)] border-b border-border">
         <div className="flex h-full items-center justify-between px-12">
           <div className="flex items-center gap-6">
             <span className="text-sm font-semibold text-foreground tracking-tight">
@@ -44,12 +44,18 @@ export default async function ClientPortalLayout({
             >
               Overview
             </Link>
+            <Link
+              href={`/client/${slug}/invoices`}
+              className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+            >
+              Invoices
+            </Link>
           </nav>
         </div>
       </header>
 
       {/* Page content */}
-      <main className="mx-auto max-w-5xl px-12 py-8">
+      <main className="mx-auto max-w-5xl px-12 py-8 print:max-w-none print:p-0">
         {children}
       </main>
     </div>

@@ -6,6 +6,7 @@ import { formatDate, formatLabel } from "@/lib/utils";
 import { StatusBadge } from "@/components/status-badge";
 import { ExpandableSection } from "@/components/expandable-section";
 import { NewTaskForm } from "./new-task-form";
+import { formatDay, formatHours } from "@/lib/billing";
 
 export default async function ClientProjectPage({
   params,
@@ -63,6 +64,21 @@ export default async function ClientProjectPage({
   });
 
   const directTasks = project.tasks.filter((t) => t.lists.length === 0);
+
+  // Only billable, stopped time is visible to clients; no rates or amounts.
+  const timeEntries = await prisma.timeEntry.findMany({
+    where: { projectId: project.id, billable: true, timerStartedAt: null, minutes: { gt: 0 } },
+    select: {
+      id: true,
+      date: true,
+      minutes: true,
+      notes: true,
+      user: { select: { name: true } },
+      task: { select: { name: true } },
+    },
+    orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+  });
+  const totalMinutes = timeEntries.reduce((sum, e) => sum + e.minutes, 0);
 
   return (
     <main className="flex flex-col gap-6">
@@ -207,6 +223,36 @@ export default async function ClientProjectPage({
           </ExpandableSection>
         ))}
       </div>
+
+      {/* Time */}
+      {timeEntries.length > 0 && (
+        <ExpandableSection title={`Time logged · ${formatHours(totalMinutes)} h`} count={timeEntries.length}>
+          <div className="overflow-hidden rounded-lg border border-zinc-200">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-zinc-50 text-xs uppercase text-zinc-500">
+                <tr>
+                  <th className="px-3 py-2 font-semibold">Date</th>
+                  <th className="px-3 py-2 font-semibold">Task</th>
+                  <th className="px-3 py-2 font-semibold">Notes</th>
+                  <th className="px-3 py-2 font-semibold">By</th>
+                  <th className="px-3 py-2 text-right font-semibold">Hours</th>
+                </tr>
+              </thead>
+              <tbody>
+                {timeEntries.map((e) => (
+                  <tr key={e.id} className="border-t border-zinc-200">
+                    <td className="whitespace-nowrap px-3 py-2 text-zinc-600">{formatDay(e.date)}</td>
+                    <td className="px-3 py-2 text-zinc-900">{e.task?.name ?? "General"}</td>
+                    <td className="px-3 py-2 text-zinc-600">{e.notes}</td>
+                    <td className="px-3 py-2 text-zinc-600">{e.user.name}</td>
+                    <td className="px-3 py-2 text-right font-mono tabular-nums">{formatHours(e.minutes)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </ExpandableSection>
+      )}
     </main>
   );
 }

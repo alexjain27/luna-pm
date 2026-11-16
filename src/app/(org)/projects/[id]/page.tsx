@@ -8,6 +8,8 @@ import { Tabs } from "@/components/tabs";
 import { ExpandableSection } from "@/components/expandable-section";
 import { KanbanBoard } from "@/components/kanban-board";
 import { FileTree } from "@/components/file-tree";
+import { entryAmountCents, getBillingSettings, liveMinutes } from "@/lib/billing";
+import { ProjectBillingCard } from "./project-billing-card";
 
 interface TreeFolder {
   id: string;
@@ -86,6 +88,34 @@ export default async function ProjectDetailPage({
   });
 
   const directTasks = project.tasks.filter((t) => t.lists.length === 0);
+
+  const [timeEntries, expenseSum, memberRates, orgUsers, billingSettings] = await Promise.all([
+    prisma.timeEntry.findMany({
+      where: { projectId: project.id },
+      select: { minutes: true, timerStartedAt: true, billable: true, rateCents: true, invoiceId: true },
+    }),
+    prisma.expense.aggregate({ where: { projectId: project.id }, _sum: { amountCents: true } }),
+    prisma.projectMemberRate.findMany({ where: { projectId: project.id } }),
+    prisma.user.findMany({
+      where: { role: "ADMIN" },
+      select: { id: true, name: true, email: true, defaultRateCents: true },
+      orderBy: { name: "asc" },
+    }),
+    getBillingSettings(),
+  ]);
+  const now = new Date();
+  const timeStats = timeEntries.reduce(
+    (acc, e) => {
+      const minutes = liveMinutes(e, now);
+      const amount = entryAmountCents({ ...e, minutes });
+      acc.minutes += minutes;
+      if (e.billable) acc.billableMinutes += minutes;
+      acc.amountCents += amount;
+      if (!e.invoiceId) acc.uninvoicedCents += amount;
+      return acc;
+    },
+    { minutes: 0, billableMinutes: 0, amountCents: 0, uninvoicedCents: 0, expenseCents: expenseSum._sum.amountCents ?? 0 }
+  );
 
   const kanbanTasks = project.tasks.map((t) => ({
     id: t.id,
@@ -254,9 +284,25 @@ export default async function ProjectDetailPage({
         </div>
 
         {/* Sidebar */}
-        <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
-          <h3 className="text-sm font-semibold text-zinc-900 mb-3">Assets</h3>
-          <FileTree folders={folderTree} rootFiles={rootFiles} />
+        <div className="flex flex-col gap-6">
+          <ProjectBillingCard
+            projectId={project.id}
+            billable={project.billable}
+            hourlyRateCents={project.hourlyRateCents}
+            budgetMinutes={project.budgetMinutes}
+            stats={timeStats}
+            members={orgUsers.map((u) => ({
+              id: u.id,
+              name: u.name ?? u.email ?? "",
+              defaultRateCents: u.defaultRateCents,
+              rateCents: memberRates.find((r) => r.userId === u.id)?.hourlyRateCents ?? null,
+            }))}
+            currency={billingSettings.currency}
+          />
+          <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
+            <h3 className="text-sm font-semibold text-zinc-900 mb-3">Assets</h3>
+            <FileTree folders={folderTree} rootFiles={rootFiles} />
+          </div>
         </div>
       </div>
     </main>
